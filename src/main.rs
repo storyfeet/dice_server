@@ -32,8 +32,8 @@ async fn new_user(form: web::Query<NewUser>, db: web::Data<Db>) -> ARes<HttpResp
 
     let hash_user = user::User::new(nu.username, &nu.password)?;
     let dbi = db.into_inner();
-    //let ulock = dbi.lock();
-    //let ures = ulock.ok().e_str("Poisoned Mutex")?;
+    //    let ulock = dbi.lock();
+    //   let ures = ulock.ok().e_str("Poisoned Mutex")?;
     let users = dbi.open_tree("users")?;
     let name = hash_user.name.clone();
     users.insert(
@@ -65,7 +65,8 @@ async fn events(path: web::Path<ORP>) -> HttpResponse {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let db = sled::open("test/maindb.db");
+    let db = web::Data::new(sled::open("test/maindb.db"));
+
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
     HttpServer::new(move || {
