@@ -5,7 +5,9 @@ mod user;
 //use err_tools::*;
 //use std::sync::{Arc, Mutex};
 use err::ARes;
-use hyper::*;
+use hyper::{service::*, *};
+use std::convert::Infallible;
+use std::str::FromStr;
 
 const CONTENT_TYPE: &str = "content_type";
 type HRes<T> = ARes<Response<T>>;
@@ -60,15 +62,26 @@ async fn events(orp: ORP) -> HRes<String> {
         .body("{}".to_string())?)
 }
 
-#[tokio::main]
-async fn main() -> std::io::Result<()> {
-    let db = sled::open("test/maindb.db");
+async fn muxer(req: Request<Body>, _db: Db) -> std::result::Result<Response<Body>, Infallible> {
+    match (req.uri().path()) {
+        "/new_user" => Ok(Response::new("New User Eh".into())),
+        _ => Ok(Response::new("Hello, from Muxer".into())),
+    }
+}
 
-    let s = |conn| async {};
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let db = sled::open("test/maindb.db")?;
+
+    let make_svc = make_service_fn(move |_conn| {
+        let dc = db.clone();
+        async { Ok::<_, Infallible>(service_fn(move |req| muxer(req, dc.clone()))) }
+    });
 
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
-    let addr = std::net::SocketAddr::from("localhost:8080");
-    let server = Server::bind(&addr).serve(s).await;
+    let addr = std::net::SocketAddr::from_str("127.0.0.1:8080")?;
+    Server::bind(&addr).serve(make_svc).await?;
+    Ok(())
 }

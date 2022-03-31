@@ -26,4 +26,8 @@ impl User {
             difficulty,
         })
     }
+
+    pub fn from_query(q: &str) -> ARes<Self> {
+        for s in q.split("&") {}
+    }
 }
