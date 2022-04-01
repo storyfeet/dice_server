@@ -1,16 +1,16 @@
 use serde_derive::*;
 use sled::Db;
 mod err;
+mod uri_reader;
 mod user;
-//use err_tools::*;
+use err_tools::*;
 //use std::sync::{Arc, Mutex};
-use err::ARes;
 use hyper::{service::*, *};
 use std::convert::Infallible;
 use std::str::FromStr;
 
-const CONTENT_TYPE: &str = "content_type";
-type HRes<T> = ARes<Response<T>>;
+const CONTENT_TYPE: &str = "Content-Type";
+type HRes<T> = anyhow::Result<Response<T>>;
 
 #[derive(Deserialize)]
 pub struct ORP {
@@ -29,21 +29,18 @@ pub struct NewUser {
     password: String,
 }
 
-async fn new_user(nu: NewUser, db: Db) -> HRes<String> {
+async fn new_user(req: Request<Body>, db: Db) -> HRes<Body> {
     println!("New user called");
 
-    let hash_user = user::User::new(nu.username, &nu.password)?;
-    //    let ulock = dbi.lock();
-    //   let ures = ulock.ok().e_str("Poisoned Mutex")?;
+    let user = user::User::from_query(req.uri().query().e_str("No Params")?)?;
     let users = db.open_tree("users")?;
-    let name = hash_user.name.clone();
     users.insert(
-        &name.as_bytes(),
-        serde_json::to_string(&hash_user)?.as_bytes(),
+        &user.name.as_bytes(),
+        serde_json::to_string(&user)?.as_bytes(),
     )?;
     Ok(Response::builder()
         .header(CONTENT_TYPE, "application/json")
-        .body(r#"{"todo":"Send Auth keys"}"#.to_string())?)
+        .body(format!(r#"{{"new_user":"{}"}}"#, user.name).into())?)
 }
 
 async fn room(orp: ORP) -> HRes<String> {
@@ -62,10 +59,14 @@ async fn events(orp: ORP) -> HRes<String> {
         .body("{}".to_string())?)
 }
 
-async fn muxer(req: Request<Body>, _db: Db) -> std::result::Result<Response<Body>, Infallible> {
-    match (req.uri().path()) {
-        "/new_user" => Ok(Response::new("New User Eh".into())),
-        _ => Ok(Response::new("Hello, from Muxer".into())),
+async fn muxer(req: Request<Body>, db: Db) -> std::result::Result<Response<Body>, Infallible> {
+    let res = match req.uri().path() {
+        "/new_user" => new_user(req, db).await,
+        p => e_string(format!("Not a valid path: {}", p)),
+    };
+    match res {
+        Ok(v) => Ok(v),
+        Err(e) => Ok(Response::new(format!("Error:{}", e).into())),
     }
 }
 

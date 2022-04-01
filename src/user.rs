@@ -1,4 +1,4 @@
-use crate::err::ARes;
+use err_tools::*;
 use rand::Rng;
 use serde_derive::*;
 
@@ -11,7 +11,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(name: String, pass: &str) -> ARes<Self> {
+    pub fn new(name: String, pass: &str) -> anyhow::Result<Self> {
         let mut salt = [0; 20];
         rand::thread_rng().fill(&mut salt);
         let difficulty = bcrypt::DEFAULT_COST;
@@ -27,7 +27,10 @@ impl User {
         })
     }
 
-    pub fn from_query(q: &str) -> ARes<Self> {
-        for s in q.split("&") {}
+    pub fn from_query(q: &str) -> anyhow::Result<Self> {
+        let mp = crate::uri_reader::QueryMap::new(q).map;
+        let name = mp.get("name").e_str("User needs a Name")?.to_string();
+        let pass = mp.get("pass").e_str("User needs a Password")?;
+        Self::new(name, pass)
     }
 }
