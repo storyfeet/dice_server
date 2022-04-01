@@ -1,9 +1,11 @@
 use serde_derive::*;
-use sled::Db;
+mod auth;
 mod err;
+mod state;
 mod uri_reader;
 mod user;
 use err_tools::*;
+use state::State;
 //use std::sync::{Arc, Mutex};
 use hyper::{service::*, *};
 use std::convert::Infallible;
@@ -29,15 +31,20 @@ pub struct NewUser {
     password: String,
 }
 
-async fn new_user(req: Request<Body>, db: Db) -> HRes<Body> {
+async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
     println!("New user called");
 
     let user = user::User::from_query(req.uri().query().e_str("No Params")?)?;
-    let users = db.open_tree("users")?;
+    let users = st.db.open_tree("users")?;
     users.insert(
         &user.name.as_bytes(),
         serde_json::to_string(&user)?.as_bytes(),
     )?;
+
+    let auth = st
+        .auth
+        .new_auth(user.name.clone(), std::time::Duration::from_secs(30 * 60));
+
     Ok(Response::builder()
         .header(CONTENT_TYPE, "application/json")
         .body(format!(r#"{{"new_user":"{}"}}"#, user.name).into())?)
@@ -59,9 +66,9 @@ async fn events(orp: ORP) -> HRes<String> {
         .body("{}".to_string())?)
 }
 
-async fn muxer(req: Request<Body>, db: Db) -> std::result::Result<Response<Body>, Infallible> {
+async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Body>, Infallible> {
     let res = match req.uri().path() {
-        "/new_user" => new_user(req, db).await,
+        "/new_user" => new_user(req, st).await,
         p => e_string(format!("Not a valid path: {}", p)),
     };
     match res {
@@ -72,11 +79,11 @@ async fn muxer(req: Request<Body>, db: Db) -> std::result::Result<Response<Body>
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let db = sled::open("test/maindb.db")?;
+    let sstate = State::new("test/maindb.db")?;
 
     let make_svc = make_service_fn(move |_conn| {
-        let dc = db.clone();
-        async { Ok::<_, Infallible>(service_fn(move |req| muxer(req, dc.clone()))) }
+        let ss = sstate.clone();
+        async { Ok::<_, Infallible>(service_fn(move |req| muxer(req, ss.clone()))) }
     });
 
     std::env::set_var("RUST_LOG", "actix_web=info");
