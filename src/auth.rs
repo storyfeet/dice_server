@@ -1,10 +1,11 @@
 use err_tools::*;
 use rand::Rng;
+use serde_derive::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct Auth<T: Clone> {
     k: u64,
     p: u64,
@@ -13,25 +14,35 @@ pub struct Auth<T: Clone> {
 }
 
 #[derive(Clone)]
+struct AuthInner<T: Clone> {
+    mp: BTreeMap<u64, Auth<T>>,
+}
+
+#[derive(Clone)]
 pub struct AuthList<T: Clone> {
-    mp: Arc<RwLock<BTreeMap<u64, Auth<T>>>>,
+    mp: Arc<RwLock<AuthInner<T>>>,
+    ttl: u64,
 }
 
 impl<T: Clone> AuthList<T> {
-    pub fn new() -> Self {
+    pub fn new(ttl: u64) -> Self {
         Self {
-            mp: Arc::new(RwLock::new(BTreeMap::new())),
+            mp: Arc::new(RwLock::new(AuthInner {
+                mp: BTreeMap::new(),
+            })),
+            ttl,
         }
     }
-    pub fn new_auth(&self, data: T, ttl: Duration) -> Auth<T> {
-        let expires = (SystemTime::now() + ttl)
+    pub fn new_auth(&self, data: T) -> Auth<T> {
+        let expires = (SystemTime::now())
             .duration_since(UNIX_EPOCH)
             .expect("Now is before the UNIX_EPOCH")
-            .as_secs();
+            .as_secs()
+            + self.ttl;
         let mut tr = rand::thread_rng();
-        let mut mp = self.mp.write().expect("Could not lock");
+        let mut inner = self.mp.write().expect("Could not lock");
         let mut k: u64 = tr.gen();
-        while let Some(_) = mp.get(&k) {
+        while let Some(_) = inner.mp.get(&k) {
             k = tr.gen();
         }
         let p = tr.gen();
@@ -41,13 +52,13 @@ impl<T: Clone> AuthList<T> {
             expires,
             data,
         };
-        mp.insert(k, res.clone());
+        inner.mp.insert(k, res.clone());
         res
     }
 
     pub fn check(&self, k: u64, p: u64) -> anyhow::Result<T> {
-        let mp = self.mp.read().ok().e_str("Poisoned RwLock")?;
-        let a = mp.get(&k).e_str("Token Key not valid")?;
+        let inner = self.mp.read().ok().e_str("Poisoned RwLock")?;
+        let a = inner.mp.get(&k).e_str("Token Key not valid")?;
         if a.p != p {
             return e_str("Pass not valid");
         }
@@ -63,6 +74,6 @@ impl<T: Clone> AuthList<T> {
 
     pub fn renew(&self, k: u64, p: u64) -> anyhow::Result<Auth<T>> {
         let r = self.check(k, p)?;
-        Ok(self.new_auth(r, Duration::from_secs(30 * 60)))
+        Ok(self.new_auth(r))
     }
 }

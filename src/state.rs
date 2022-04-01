@@ -10,7 +10,7 @@ impl State {
     pub fn new(dbloc: &str) -> anyhow::Result<Self> {
         Ok(Self {
             db: sled::open(dbloc)?,
-            auth: AuthList::new(),
+            auth: AuthList::new(30 * 60),
         })
     }
 }

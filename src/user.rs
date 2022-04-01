@@ -3,14 +3,31 @@ use rand::Rng;
 use serde_derive::*;
 
 #[derive(Serialize, Deserialize)]
-pub struct User {
+pub struct HashUser {
     pub name: String,
     salt: Vec<u8>,
     hash: String,
     difficulty: u32,
 }
 
+pub struct User {
+    pub name: String,
+    pass: String,
+}
 impl User {
+    pub fn from_query(q: &str) -> anyhow::Result<Self> {
+        let mp = crate::uri_reader::QueryMap::new(q).map;
+        let name = mp.get("name").e_str("User needs a Name")?.to_string();
+        let pass = mp.get("pass").e_str("User needs a Password")?.to_string();
+        Ok(Self { name, pass })
+    }
+
+    pub fn hash(self) -> anyhow::Result<HashUser> {
+        HashUser::new(self.name, &self.pass)
+    }
+}
+
+impl HashUser {
     pub fn new(name: String, pass: &str) -> anyhow::Result<Self> {
         let mut salt = [0; 20];
         rand::thread_rng().fill(&mut salt);
@@ -19,7 +36,7 @@ impl User {
         psalt.extend(&salt);
         psalt.extend(pass.as_bytes());
         let hash = bcrypt::hash(psalt, difficulty)?;
-        Ok(User {
+        Ok(Self {
             name,
             salt: salt.to_vec(),
             hash: hash,
@@ -27,10 +44,9 @@ impl User {
         })
     }
 
-    pub fn from_query(q: &str) -> anyhow::Result<Self> {
-        let mp = crate::uri_reader::QueryMap::new(q).map;
-        let name = mp.get("name").e_str("User needs a Name")?.to_string();
-        let pass = mp.get("pass").e_str("User needs a Password")?;
-        Self::new(name, pass)
+    pub fn verify(&self, user: &User) -> bool {
+        let mut ps = self.salt.clone();
+        ps.extend(user.pass.as_bytes());
+        bcrypt::verify(ps, &self.hash).unwrap_or(false)
     }
 }

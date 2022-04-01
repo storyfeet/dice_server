@@ -7,22 +7,20 @@ mod user;
 use err_tools::*;
 use state::State;
 //use std::sync::{Arc, Mutex};
+use auth::Auth;
 use hyper::{service::*, *};
+use serde::{de::DeserializeOwned, Serialize};
 use std::convert::Infallible;
+use std::ops::Deref;
 use std::str::FromStr;
 
 const CONTENT_TYPE: &str = "Content-Type";
 type HRes<T> = anyhow::Result<Response<T>>;
 
-#[derive(Deserialize)]
-pub struct ORP {
-    //owner: String,
-    resource: String,
-    player: String,
-}
-
-async fn index() -> String {
-    "Food".to_string()
+#[derive(Serialize)]
+pub struct AuthResponse<T: Clone + Serialize, R: Serialize> {
+    auth: Auth<T>,
+    data: R,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -31,44 +29,50 @@ pub struct NewUser {
     password: String,
 }
 
+pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Auth<T>, data: D) -> HRes<Body> {
+    let au = AuthResponse { auth, data };
+
+    Ok(Response::builder()
+        .header(CONTENT_TYPE, "application/json")
+        .body(serde_json::to_string(&au)?.into())?)
+}
+
+pub fn get_data<'a, T: DeserializeOwned>(t: &'a sled::Tree, name: &str) -> anyhow::Result<T> {
+    Ok(serde_json::from_str(std::str::from_utf8(
+        t.get(name)?.e_str("user not found")?.deref(),
+    )?)?)
+}
+
 async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
     println!("New user called");
 
-    let user = user::User::from_query(req.uri().query().e_str("No Params")?)?;
+    let user = user::User::from_query(req.uri().query().e_str("No Params")?)?.hash()?;
     let users = st.db.open_tree("users")?;
     users.insert(
         &user.name.as_bytes(),
         serde_json::to_string(&user)?.as_bytes(),
     )?;
 
-    let auth = st
-        .auth
-        .new_auth(user.name.clone(), std::time::Duration::from_secs(30 * 60));
-
-    Ok(Response::builder()
-        .header(CONTENT_TYPE, "application/json")
-        .body(format!(r#"{{"new_user":"{}"}}"#, user.name).into())?)
+    let auth = st.auth.new_auth(user.name.clone());
+    ok_json(auth, user.name)
 }
 
-async fn room(orp: ORP) -> HRes<String> {
-    Ok(http::Response::builder()
-        .header(CONTENT_TYPE, "text-html")
-        .body(format!(
-            include_str!("static/room.html"),
-            room = orp.resource,
-            owner = orp.player,
-        ))?)
-}
-
-async fn events(orp: ORP) -> HRes<String> {
-    Ok(Response::builder()
-        .header(CONTENT_TYPE, "application-json")
-        .body("{}".to_string())?)
+async fn login(req: Request<Body>, st: State) -> HRes<Body> {
+    println!("Login Called");
+    let user = user::User::from_query(req.uri().query().e_str("No Params")?)?;
+    let users = st.db.open_tree("users")?;
+    let hu: user::HashUser = get_data(&users, &user.name)?;
+    if !hu.verify(&user) {
+        return e_str("Could not verify user");
+    }
+    let auth = st.auth.new_auth(user.name.clone());
+    ok_json(auth, user.name)
 }
 
 async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Body>, Infallible> {
     let res = match req.uri().path() {
         "/new_user" => new_user(req, st).await,
+        "/login" => login(req, st).await,
         p => e_string(format!("Not a valid path: {}", p)),
     };
     match res {
