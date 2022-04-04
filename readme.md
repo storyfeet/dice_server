@@ -1,16 +1,17 @@
 
 Memory:
-    Logins(key_to_dash):
-        key,
-        expiry,
-        username,
-        
+    Logins(Auth1):
+        Auth2,
+        Username
+
 
 Databases:
     Users(Username):
         Password,
 
-    Rooms(Username/RoomName):
+    RoomID:
+        Username,
+        Password,
 
     Templates(PATH): //Classes
         <TODO>
