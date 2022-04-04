@@ -10,7 +10,15 @@ Databases:
     Users(Username):
         Password,
 
-    Rooms(Username/RoomName):
+    Guests(Username):
+        List(User):
+            permissions 
+
+    Events(Username/Roomname):
+        List: Event
+
+    Status(Username/Roomname):
+        List: Room Items
 
     Templates(PATH): //Classes
         <TODO>

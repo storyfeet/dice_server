@@ -1,6 +1,6 @@
 use serde_derive::*;
 mod auth;
-mod err;
+mod room;
 mod state;
 mod uri_reader;
 mod user;
