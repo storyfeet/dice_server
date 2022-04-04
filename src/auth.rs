@@ -20,22 +20,6 @@ fn gen_key<R: Rng>(r: &mut R) -> String {
     res
 }
 
-/*impl AuthRequest {
-    pub fn from_query(q: &str) -> anyhow::Result<Self> {
-        let mp = crate::uri_reader::QueryMap::new(q).map;
-        let kp = mp.get("k").e_str("auth needs key k")?;
-        let mut sp = kp.split("_");
-        let k = sp.next().e_str("Key bad")?.to_string();
-        let p = sp.next().e_str("Badly formed Key String?")?.to_string();
-        Ok(Self { k, p })
-    }
-
-    /// to make combinators easier
-    pub fn check<T: Clone>(self, al: &AuthList<T>) -> anyhow::Result<Auth<T>> {
-        al.check(self)
-    }
-}*/
-
 #[derive(Clone, Serialize)]
 pub struct Auth<T: Clone> {
     k: String,

@@ -1,5 +1,6 @@
 use serde_derive::*;
 mod auth;
+mod guests;
 mod room;
 mod state;
 mod uri_reader;
@@ -36,10 +37,14 @@ pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Auth<T>, data: D) -> HR
         .body(serde_json::to_string(&au)?.into())?)
 }
 
-pub fn get_data<'a, T: DeserializeOwned>(t: &'a sled::Tree, name: &str) -> anyhow::Result<T> {
-    Ok(serde_json::from_str(std::str::from_utf8(
-        t.get(name)?.e_str("user not found")?.deref(),
-    )?)?)
+pub fn get_data<'a, T: DeserializeOwned>(
+    t: &'a sled::Tree,
+    name: &str,
+) -> anyhow::Result<Option<T>> {
+    match t.get(name)? {
+        Some(v) => Ok(serde_json::from_str(std::str::from_utf8(v.deref())?)?),
+        None => Ok(None),
+    }
 }
 
 async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
@@ -60,7 +65,7 @@ async fn login(req: Request<Body>, st: State) -> HRes<Body> {
     println!("Login Called");
     let user = user::User::from_query(req.uri().query().e_str("No Params")?)?;
     let users = st.db.open_tree("users")?;
-    let hu: user::HashUser = get_data(&users, &user.name)?;
+    let hu: user::HashUser = get_data(&users, &user.name)?.e_str("User does not exist")?;
     if !hu.verify(&user) {
         return e_str("Could not verify user");
     }
@@ -75,8 +80,21 @@ pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
         .check_query(req.uri().query().e_str("Params for Auth")?)?;
 
     let users = st.db.open_tree("users")?;
-    let hu: user::HashUser = get_data(&users, &auth.data)?;
+    let hu: user::HashUser = get_data(&users, &auth.data)?.e_str("Login for non existent user")?;
     ok_json(auth, hu.name)
+}
+
+pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
+    println!("new_guest");
+    let auth = st
+        .auth
+        .check_query(req.uri().query().e_str("Parames for Auth")?)?;
+    let guests = st.db.open_tree("guests")?;
+    let newguest = serde_urlencoded::from_str(req.uri().query().e_str("no guest data")?)?;
+    let mut glist: Vec<guests::Guest> = get_data(&guests, &auth.data)?.unwrap_or(Vec::new());
+    glist.push(newguest);
+    guests.insert(&auth.data, serde_json::to_string(&glist)?.as_bytes())?;
+    ok_json(auth, glist)
 }
 
 async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Body>, Infallible> {
@@ -84,6 +102,7 @@ async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Bo
         "/new_user" => new_user(req, st).await,
         "/login" => login(req, st).await,
         "/renew_login" => renew_login(req, st).await,
+        "/create_guest" => create_guest(req, st).await,
         p => e_string(format!("Not a valid path: {}", p)),
     };
     match res {
