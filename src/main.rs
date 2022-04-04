@@ -31,7 +31,6 @@ pub struct NewUser {
 
 pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Auth<T>, data: D) -> HRes<Body> {
     let au = AuthResponse { auth, data };
-
     Ok(Response::builder()
         .header(CONTENT_TYPE, "application/json")
         .body(serde_json::to_string(&au)?.into())?)
@@ -69,10 +68,22 @@ async fn login(req: Request<Body>, st: State) -> HRes<Body> {
     ok_json(auth, user.name)
 }
 
+pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
+    println!("Check Login called");
+    let auth = st
+        .auth
+        .check_query(req.uri().query().e_str("Params for Auth")?)?;
+
+    let users = st.db.open_tree("users")?;
+    let hu: user::HashUser = get_data(&users, &auth.data)?;
+    ok_json(auth, hu.name)
+}
+
 async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Body>, Infallible> {
     let res = match req.uri().path() {
         "/new_user" => new_user(req, st).await,
         "/login" => login(req, st).await,
+        "/renew_login" => renew_login(req, st).await,
         p => e_string(format!("Not a valid path: {}", p)),
     };
     match res {

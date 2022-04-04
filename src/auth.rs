@@ -1,24 +1,55 @@
 use err_tools::*;
-use rand::Rng;
+use rand::{seq::SliceRandom, Rng};
 use serde_derive::*;
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const KCHARS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890";
+
+fn gen_key<R: Rng>(r: &mut R) -> String {
+    let b = KCHARS.as_bytes();
+    let mut res = String::new();
+    for _ in 0..15 {
+        res.push(*(b.choose(r).expect("KCHARS empty")) as char);
+    }
+    res.push('_');
+    for _ in 0..15 {
+        res.push(*(b.choose(r).expect("KCHARS empty")) as char);
+    }
+    res
+}
+
+/*impl AuthRequest {
+    pub fn from_query(q: &str) -> anyhow::Result<Self> {
+        let mp = crate::uri_reader::QueryMap::new(q).map;
+        let kp = mp.get("k").e_str("auth needs key k")?;
+        let mut sp = kp.split("_");
+        let k = sp.next().e_str("Key bad")?.to_string();
+        let p = sp.next().e_str("Badly formed Key String?")?.to_string();
+        Ok(Self { k, p })
+    }
+
+    /// to make combinators easier
+    pub fn check<T: Clone>(self, al: &AuthList<T>) -> anyhow::Result<Auth<T>> {
+        al.check(self)
+    }
+}*/
+
 #[derive(Clone, Serialize)]
 pub struct Auth<T: Clone> {
-    k: u64,
-    p: u64,
+    k: String,
     expires: u64,
-    data: T,
+    pub data: T,
 }
 
 #[derive(Clone)]
 struct AuthInner<T: Clone> {
-    mp: BTreeMap<u64, Auth<T>>,
+    mp: BTreeMap<String, Auth<T>>,
 }
 
 #[derive(Clone)]
+///Key is two parts, first to name, second to authorize, split on _
 pub struct AuthList<T: Clone> {
     mp: Arc<RwLock<AuthInner<T>>>,
     ttl: u64,
@@ -41,25 +72,34 @@ impl<T: Clone> AuthList<T> {
             + self.ttl;
         let mut tr = rand::thread_rng();
         let mut inner = self.mp.write().expect("Could not lock");
-        let mut k: u64 = tr.gen();
-        while let Some(_) = inner.mp.get(&k) {
-            k = tr.gen();
+        let mut k = gen_key(&mut tr);
+        let mut ksp = k.split('_').next().expect("split has at least 1 member");
+        while let Some(_) = inner.mp.get(ksp) {
+            k = gen_key(&mut tr);
+            ksp = k.split('_').next().expect("split has at least 1 member");
         }
-        let p = tr.gen();
         let res = Auth {
-            k,
-            p,
+            k: k.clone(),
             expires,
             data,
         };
-        inner.mp.insert(k, res.clone());
+        inner.mp.insert(ksp.to_string(), res.clone());
         res
     }
 
-    pub fn check(&self, k: u64, p: u64) -> anyhow::Result<T> {
+    pub fn check_query(&self, qs: &str) -> anyhow::Result<Auth<T>> {
+        let mp = crate::uri_reader::QueryMap::new(qs).map;
+        let kp = mp.get("k").e_str("auth needs key k")?;
+        self.check(kp)
+    }
+
+    pub fn check(&self, k: &str) -> anyhow::Result<Auth<T>> {
         let inner = self.mp.read().ok().e_str("Poisoned RwLock")?;
-        let a = inner.mp.get(&k).e_str("Token Key not valid")?;
-        if a.p != p {
+        let a = inner
+            .mp
+            .get(k.split("_").next().e_str("Key Bad")?)
+            .e_str("Token Key not valid")?;
+        if a.k != k {
             return e_str("Pass not valid");
         }
         let now = SystemTime::now()
@@ -67,13 +107,13 @@ impl<T: Clone> AuthList<T> {
             .expect("now before unix Epoch")
             .as_secs();
         match now < a.expires {
-            true => Ok(a.data.clone()),
+            true => Ok(a.clone()),
             false => e_str("Token Expired"),
         }
     }
 
-    pub fn renew(&self, k: u64, p: u64) -> anyhow::Result<Auth<T>> {
-        let r = self.check(k, p)?;
-        Ok(self.new_auth(r))
+    pub fn renew(&self, ar: &str) -> anyhow::Result<Auth<T>> {
+        let r = self.check(ar)?;
+        Ok(self.new_auth(r.data.clone()))
     }
 }
