@@ -16,6 +16,9 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 const CONTENT_TYPE: &str = "Content-Type";
+const CT_HTML: &str = "text/html";
+const CT_JS: &str = "application/javascript";
+const CT_JSON: &str = "application/json";
 type HRes<T> = anyhow::Result<Response<T>>;
 
 #[derive(Serialize)]
@@ -33,7 +36,7 @@ pub struct NewUser {
 pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Auth<T>, data: D) -> HRes<Body> {
     let au = AuthResponse { auth, data };
     Ok(Response::builder()
-        .header(CONTENT_TYPE, "application/json")
+        .header(CONTENT_TYPE, CT_JSON)
         .body(serde_json::to_string(&au)?.into())?)
 }
 
@@ -45,6 +48,18 @@ pub fn get_data<'a, T: DeserializeOwned>(
         Some(v) => Ok(serde_json::from_str(std::str::from_utf8(v.deref())?)?),
         None => Ok(None),
     }
+}
+
+async fn page(req: Request<Body>) -> HRes<Body> {
+    let (ct, s) = match req.uri().path() {
+        "/" => (CT_HTML, include_str!("static/index.html")),
+        "/static/jquery.min.js" => (CT_JS, include_str!("static/jquery.min.js")),
+        _ => e_str("Path did not reach anything")?,
+    };
+
+    Ok(Response::builder()
+        .header(CONTENT_TYPE, ct)
+        .body(s.into())?)
 }
 
 async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
@@ -103,7 +118,7 @@ async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Bo
         "/login" => login(req, st).await,
         "/renew_login" => renew_login(req, st).await,
         "/create_guest" => create_guest(req, st).await,
-        p => e_string(format!("Not a valid path: {}", p)),
+        _ => page(req).await,
     };
     match res {
         Ok(v) => Ok(v),

@@ -3,10 +3,18 @@
     <head>
         <title>DiceLang</title>
         <meta charset="utf-8">
+        <script src="/static/jquery.min.js"></script>
     </head>
 <body>
-    <h1>Dice Chat</h1> 
-    
+    <h1>Dice Chat forms</h1> 
+    <div class="output-box">
+        <span class="output"></span>
+    </div>
+    <form action="login" method="get">
+        <p>Name : <input name="name" /></p>
+        <p>Pass : <input type="password" name="pass" /></p>
+        <input type="submit">
+    </form>
 
 </body>
 </html>
