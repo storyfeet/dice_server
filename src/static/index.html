@@ -16,5 +16,25 @@
         <input type="submit">
     </form>
 
+
+
+
+
+<script>
+    $("form").submit((sub)=>{
+            let form = sub.target;
+            console.log("form submitted : ",form);
+            
+            jQuery.get(
+                    form.action,
+                    $(form).serialize(),
+                    (dt)=>{console.log("Result = ",dt)}
+                );
+            console.log("JQuery form happy");
+            return false;
+        });
+
+
+</script>
 </body>
 </html>
