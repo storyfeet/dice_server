@@ -3,6 +3,7 @@
     <head>
         <title>DiceLang</title>
         <meta charset="utf-8">
+        <link rel="stylesheet" href="/static/main.css">
         <script src="/static/jquery.min.js"></script>
     </head>
 <body>
@@ -10,10 +11,17 @@
     <div class="output-box">
         <span class="output"></span>
     </div>
-    <form action="login" method="get">
+    <form action="new_user" method="get">
+        <h3>New User</h3>
         <p>Name : <input name="name" /></p>
         <p>Pass : <input type="password" name="pass" /></p>
-        <input type="submit">
+        <input type="submit" value="login">
+    </form>
+    <form action="login" method="get">
+        <h3>Login</h3>
+        <p>Name : <input name="name"/></p>
+        <p>Pass : <input type="password" name="pass"/></p>
+        <input type="submit" value="login">
     </form>
 
 
@@ -21,6 +29,7 @@
 
 
 <script>
+    my_auth=undefined;
     $("form").submit((sub)=>{
             let form = sub.target;
             console.log("form submitted : ",form);
@@ -28,7 +37,11 @@
             jQuery.get(
                     form.action,
                     $(form).serialize(),
-                    (dt)=>{console.log("Result = ",dt)}
+                    (dt)=>{
+                            my_auth = dt.auth;
+                            console.log("Auth = ",my_auth);
+                            console.log("Result = ",dt.data);
+                        }
                 );
             console.log("JQuery form happy");
             return false;

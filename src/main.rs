@@ -19,6 +19,7 @@ const CONTENT_TYPE: &str = "Content-Type";
 const CT_HTML: &str = "text/html";
 const CT_JS: &str = "application/javascript";
 const CT_JSON: &str = "application/json";
+const CT_CSS: &str = "text/css";
 type HRes<T> = anyhow::Result<Response<T>>;
 
 #[derive(Serialize)]
@@ -54,6 +55,7 @@ async fn page(req: Request<Body>) -> HRes<Body> {
     let (ct, s) = match req.uri().path() {
         "/" => (CT_HTML, include_str!("static/index.html")),
         "/static/jquery.min.js" => (CT_JS, include_str!("static/jquery.min.js")),
+        "/static/main.css" => (CT_CSS, include_str!("static/main.css")),
         _ => e_str("Path did not reach anything")?,
     };
 
@@ -67,6 +69,12 @@ async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
 
     let user = user::User::from_query(req.uri().query().e_str("No Params")?)?.hash()?;
     let users = st.db.open_tree("users")?;
+    match get_data::<user::HashUser>(&users, &user.name) {
+        Ok(None) => {}
+        Ok(Some(_)) => return e_str("User already exists"),
+        Err(_) => return e_str("Could not access Users"),
+    }
+
     users.insert(
         &user.name.as_bytes(),
         serde_json::to_string(&user)?.as_bytes(),
