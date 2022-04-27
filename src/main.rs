@@ -11,7 +11,7 @@ use state::State;
 use auth::Auth;
 use hyper::{service::*, *};
 use serde::{de::DeserializeOwned, Serialize};
-use std::convert::Infallible;
+//use std::convert::Infallible;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -120,7 +120,7 @@ pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
     ok_json(auth, glist)
 }
 
-async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Body>, Infallible> {
+async fn muxer(req: Request<Body>, st: State) -> anyhow::Result<Response<Body>> {
     let res = match req.uri().path() {
         "/new_user" => new_user(req, st).await,
         "/login" => login(req, st).await,
@@ -130,7 +130,9 @@ async fn muxer(req: Request<Body>, st: State) -> std::result::Result<Response<Bo
     };
     match res {
         Ok(v) => Ok(v),
-        Err(e) => Ok(Response::new(format!("Error:{}", e).into())),
+        Err(e) => Ok(Response::builder()
+            .header(CONTENT_TYPE, CT_JSON)
+            .body(format!(r#"{{"err":"{}" }}"#, e).into())?),
     }
 }
 
@@ -140,7 +142,7 @@ async fn main() -> anyhow::Result<()> {
 
     let make_svc = make_service_fn(move |_conn| {
         let ss = sstate.clone();
-        async { Ok::<_, Infallible>(service_fn(move |req| muxer(req, ss.clone()))) }
+        async { Ok::<_, anyhow::Error>(service_fn(move |req| muxer(req, ss.clone()))) }
     });
 
     std::env::set_var("RUST_LOG", "actix_web=info");
