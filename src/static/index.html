@@ -8,47 +8,67 @@
     </head>
 <body>
     <h1>Dice Chat forms</h1> 
+    <div class="err-box" onclick='this.innerHTML=""'>
+    </div>
     <div class="output-box">
         <span class="output"></span>
     </div>
-    <form action="new_user" method="get">
+    <form action="new_user" method="get" onsubmit='return submitter(this,showNewUser)'>
         <h3>New User</h3>
         <p>Name : <input name="name" /></p>
         <p>Pass : <input type="password" name="pass" /></p>
-        <input type="submit" value="login">
+        <input type="submit" value="Create User">
     </form>
-    <form action="login" method="get">
+    <form action="login" method="get" onsubmit='return submitter(this,showLogin)'>
         <h3>Login</h3>
         <p>Name : <input name="name"/></p>
         <p>Pass : <input type="password" name="pass"/></p>
         <input type="submit" value="login">
     </form>
 
-
-
-
-
 <script>
 
+    my_auth=undefined;
+
+    function showNewUser(dt){
+        console.log("NewUser result : ",dt);
+        $(".output-box").text("NewUser: " + dt);
+    }
+
+    function showLogin(dt){
+        console.log("Login Success : ",dt);
+        $(".output-box").text("Login: " + dt);
+    }
+
+    function submitter(form,f){
+        console.log("form submitted : ",form);
+        let form_ser = $(form).serializeArray();
+        if (my_auth) form_ser.push({name:"auth",value:my_auth.k})
+            else form_ser.push({name:"no-auth",value:"food"});
+        console.log("Form Serialized = ",form_ser);
+        
+        jQuery.ajax({
+            url : form.action,
+            data: form_ser,
+            type: form.method || "GET",
+            success: (dt)=>{
+                if (dt.err ) {
+                        console.log("ERR,",dt.err);
+                        $(".err-box").text("ERROR: " + dt.err);
+                }
+                if (dt.auth) {
+                    console.log("AUTH,",dt.auth);
+                    my_auth = dt.auth;
+                }
+                if (dt.data) f(dt.data);
+            },
+
+        });
+        console.log("JQuery form happy");
+        return false;
+    }
     
 
-    my_auth=undefined;
-    $("form").submit((sub)=>{
-            let form = sub.target;
-            console.log("form submitted : ",form);
-            
-            jQuery.get(
-                    form.action,
-                    $(form).serialize(),
-                    (dt)=>{
-                            my_auth = dt.auth;
-                            console.log("Auth = ",my_auth);
-                            console.log("Result = ",dt.data);
-                        }
-                );
-            console.log("JQuery form happy");
-            return false;
-        });
 
 </script>
 </body>
