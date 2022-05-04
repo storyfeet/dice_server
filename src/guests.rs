@@ -4,6 +4,7 @@ use serde_derive::*;
 pub struct Guest {
     name: String,
     pass: String,
+    rooms: Vec<String>,
     read: Vec<String>,
     write: Vec<String>,
 }

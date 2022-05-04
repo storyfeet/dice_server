@@ -20,6 +20,12 @@ const CT_HTML: &str = "text/html";
 const CT_JS: &str = "application/javascript";
 const CT_JSON: &str = "application/json";
 const CT_CSS: &str = "text/css";
+
+const TBL_USERS: &str = "users";
+//const TBL_GUESTS: &str = "guests";
+//const TBL_ROOMS: &str = "rooms";
+//const TBL_DATA: &str = "data"; //Scenes,templates,characters,
+
 type HRes<T> = anyhow::Result<Response<T>>;
 
 #[derive(Serialize)]
@@ -68,7 +74,7 @@ async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
     println!("New user called");
 
     let user = user::User::from_query(req.uri().query().e_str("No Params")?)?.hash()?;
-    let users = st.db.open_tree("users")?;
+    let users = st.db.open_tree(TBL_USERS)?;
     match get_data::<user::HashUser>(&users, &user.name) {
         Ok(None) => {}
         Ok(Some(_)) => return e_str("User already exists"),
@@ -87,7 +93,7 @@ async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
 async fn login(req: Request<Body>, st: State) -> HRes<Body> {
     println!("Login Called");
     let user = user::User::from_query(req.uri().query().e_str("No Params")?)?;
-    let users = st.db.open_tree("users")?;
+    let users = st.db.open_tree(TBL_USERS)?;
     let hu: user::HashUser = get_data(&users, &user.name)?.e_str("User does not exist")?;
     if !hu.verify(&user) {
         return e_str("Could not verify user");
@@ -102,22 +108,26 @@ pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
         .auth
         .check_query(req.uri().query().e_str("Params for Auth")?)?;
 
-    let users = st.db.open_tree("users")?;
+    let users = st.db.open_tree(TBL_USERS)?;
     let hu: user::HashUser = get_data(&users, &auth.data)?.e_str("Login for non existent user")?;
     ok_json(auth, hu.name)
 }
 
 pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
     println!("new_guest");
-    let auth = st
-        .auth
-        .check_query(req.uri().query().e_str("Parames for Auth")?)?;
-    let guests = st.db.open_tree("guests")?;
-    let newguest = serde_urlencoded::from_str(req.uri().query().e_str("no guest data")?)?;
+    let (p, body) = req.into_parts();
+    let data = hyper::body::to_bytes(body).await?;
+    let s: &str = std::str::from_utf8(&data)?;
+    println!("GUEST BODY:{}", s);
+    let uri = p.uri.query().e_str("Parames for Auth");
+    let auth = st.auth.check_query(uri?)?;
+    //let guests = st.db.open_tree(TBL_GUESTS)?;
+    /*let newguest = serde_urlencoded::from_str(req.uri().query().e_str("no guest data")?)?;
     let mut glist: Vec<guests::Guest> = get_data(&guests, &auth.data)?.unwrap_or(Vec::new());
     glist.push(newguest);
     guests.insert(&auth.data, serde_json::to_string(&glist)?.as_bytes())?;
-    ok_json(auth, glist)
+    */
+    ok_json(auth, "{}")
 }
 
 async fn muxer(req: Request<Body>, st: State) -> anyhow::Result<Response<Body>> {

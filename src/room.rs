@@ -17,5 +17,5 @@ pub enum EventType {
 pub enum Template {}
 
 pub struct Room {
-    events: Vec<Event>,
+    logs: Vec<String>,
 }

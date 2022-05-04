@@ -13,17 +13,24 @@
     <div class="output-box">
         <span class="output"></span>
     </div>
-    <form action="new_user" method="get" onsubmit='return submitter(this,showNewUser)'>
+    <form action="new_user" method="get" onsubmit='event.preventDefault();return submitter(this,showNewUser)'>
         <h3>New User</h3>
         <p>Name : <input name="name" /></p>
         <p>Pass : <input type="password" name="pass" /></p>
         <input type="submit" value="Create User">
     </form>
-    <form action="login" method="get" onsubmit='return submitter(this,showLogin)'>
+    <form action="login" method="get" onsubmit='event.preventDefault; return submitter(this,showLogin)'>
         <h3>Login</h3>
         <p>Name : <input name="name"/></p>
         <p>Pass : <input type="password" name="pass"/></p>
         <input type="submit" value="login">
+    </form>
+
+    <form action="create_guest" method="POST" onsubmit='event.preventDefault();return submitter(this,showNewGuest)'>
+        <h3>Create Guest</h3>
+        <p>Name: <input name="name"/></p>
+        <p>Rooms: <input name="rooms"/></p>
+        <input type="submit" value="create guest">
     </form>
 
 <script>
@@ -40,7 +47,14 @@
         $(".output-box").text("Login: " + dt);
     }
 
+    function showNewGuest(dt){
+        console.log("Created Guest : ",dt);
+        $(".output-box").text("New Guest: " + dt);
+    }
+
     function submitter(form,f){
+        //form.preventDefault();
+        f = f || showNewUser;
         console.log("form submitted : ",form);
         let form_ser = $(form).serializeArray();
         if (my_auth) form_ser.push({name:"auth",value:my_auth.k})
