@@ -7,6 +7,7 @@ mod uri_reader;
 mod user;
 use err_tools::*;
 use state::State;
+use uri_reader::QueryMap;
 //use std::sync::{Arc, Mutex};
 use auth::Auth;
 use hyper::{service::*, *};
@@ -22,11 +23,24 @@ const CT_JSON: &str = "application/json";
 const CT_CSS: &str = "text/css";
 
 const TBL_USERS: &str = "users";
-//const TBL_GUESTS: &str = "guests";
+const TBL_GUESTS: &str = "guests";
 //const TBL_ROOMS: &str = "rooms";
 //const TBL_DATA: &str = "data"; //Scenes,templates,characters,
 
 type HRes<T> = anyhow::Result<Response<T>>;
+
+pub async fn split_param_data(
+    req: Request<Body>,
+) -> anyhow::Result<(http::request::Parts, QueryMap)> {
+    let (p, body) = req.into_parts();
+    if let Some(s) = p.uri.query() {
+        let mp = QueryMap::new(s);
+        return Ok((p, mp));
+    }
+    let data = hyper::body::to_bytes(body).await?;
+    let s: &str = std::str::from_utf8(&data)?;
+    Ok((p, QueryMap::new(s)))
+}
 
 #[derive(Serialize)]
 pub struct AuthResponse<T: Clone + Serialize, R: Serialize> {
@@ -104,9 +118,8 @@ async fn login(req: Request<Body>, st: State) -> HRes<Body> {
 
 pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
     println!("Check Login called");
-    let auth = st
-        .auth
-        .check_query(req.uri().query().e_str("Params for Auth")?)?;
+    let (_, qmap) = split_param_data(req).await?;
+    let auth = st.auth.check_qdata(&qmap)?;
 
     let users = st.db.open_tree(TBL_USERS)?;
     let hu: user::HashUser = get_data(&users, &auth.data)?.e_str("Login for non existent user")?;
@@ -114,19 +127,16 @@ pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
 }
 
 pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
-    println!("new_guest");
-    let (p, body) = req.into_parts();
-    let data = hyper::body::to_bytes(body).await?;
-    let s: &str = std::str::from_utf8(&data)?;
-    println!("GUEST BODY:{}", s);
-    let uri = p.uri.query().e_str("Parames for Auth");
-    let auth = st.auth.check_query(uri?)?;
-    //let guests = st.db.open_tree(TBL_GUESTS)?;
-    /*let newguest = serde_urlencoded::from_str(req.uri().query().e_str("no guest data")?)?;
-    let mut glist: Vec<guests::Guest> = get_data(&guests, &auth.data)?.unwrap_or(Vec::new());
+    let (p, qmap) = split_param_data(req).await?;
+
+    let auth = st.auth.check_qdata(&qmap)?;
+
+    let g_tbl = st.db.open_tree(TBL_GUESTS)?;
+
+    let newguest = serde_urlencoded::from_str(p.uri.query().e_str("no guest data")?)?;
+    let mut glist: Vec<guests::Guest> = get_data(&g_tbl, &auth.data)?.unwrap_or(Vec::new());
     glist.push(newguest);
-    guests.insert(&auth.data, serde_json::to_string(&glist)?.as_bytes())?;
-    */
+    g_tbl.insert(&auth.data, serde_json::to_string(&glist)?.as_bytes())?;
     ok_json(auth, "{}")
 }
 

@@ -1,3 +1,4 @@
+use crate::uri_reader::QueryMap;
 use err_tools::*;
 use rand::{seq::SliceRandom, Rng};
 use serde_derive::*;
@@ -71,9 +72,8 @@ impl<T: Clone> AuthList<T> {
         res
     }
 
-    pub fn check_query(&self, qs: &str) -> anyhow::Result<Auth<T>> {
-        let mp = crate::uri_reader::QueryMap::new(qs).map;
-        let kp = mp.get("k").e_str("auth needs key k")?;
+    pub fn check_qdata(&self, mp: &QueryMap) -> anyhow::Result<Auth<T>> {
+        let kp = mp.map.get("auth").e_str("No Auth Provided")?;
         self.check(kp)
     }
 

@@ -11,7 +11,8 @@
     <div class="err-box" onclick='this.innerHTML=""'>
     </div>
     <div class="output-box">
-        <span class="output"></span>
+        <b>Requests : <span class="request-count">0</span></b><br>
+        <span class="output-span"></span>
     </div>
     <form action="new_user" method="get" onsubmit='event.preventDefault();return submitter(this,showNewUser)'>
         <h3>New User</h3>
@@ -36,20 +37,20 @@
 <script>
 
     my_auth=undefined;
-
+    requests = 0;
     function showNewUser(dt){
         console.log("NewUser result : ",dt);
-        $(".output-box").text("NewUser: " + dt);
+        $(".output-span").text("NewUser: " + dt);
     }
 
     function showLogin(dt){
         console.log("Login Success : ",dt);
-        $(".output-box").text("Login: " + dt);
+        $(".output-span").text("Login: " + dt);
     }
 
     function showNewGuest(dt){
         console.log("Created Guest : ",dt);
-        $(".output-box").text("New Guest: " + dt);
+        $(".output-span").text("New Guest: " + dt);
     }
 
     function submitter(form,f){
@@ -66,6 +67,8 @@
             data: form_ser,
             type: form.method || "GET",
             success: (dt)=>{
+                requests += 1;
+                $(".request-count").text(requests);
                 if (dt.err ) {
                         console.log("ERR,",dt.err);
                         $(".err-box").text("ERROR: " + dt.err);
