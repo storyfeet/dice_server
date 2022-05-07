@@ -18,4 +18,13 @@ pub enum Template {}
 
 pub struct Room {
     logs: Vec<String>,
+    permissions: Vec<Permission>,
+}
+
+pub struct Permission {
+    name: Option<String>,
+    rooms: Vec<String>,
+    read: Vec<String>,
+    write: Vec<String>,
+    create: Vec<String>,
 }

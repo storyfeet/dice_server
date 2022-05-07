@@ -1,3 +1,4 @@
+use crate::uri_reader::QueryMap;
 use err_tools::*;
 use rand::Rng;
 use serde_derive::*;
@@ -16,9 +17,17 @@ pub struct User {
 }
 impl User {
     pub fn from_query(q: &str) -> anyhow::Result<Self> {
-        let mp = crate::uri_reader::QueryMap::new(q).map;
-        let name = mp.get("name").e_str("User needs a Name")?.to_string();
-        let pass = mp.get("pass").e_str("User needs a Password")?.to_string();
+        let mp = QueryMap::new(q);
+        Self::from_qmap(&mp)
+    }
+
+    pub fn from_qmap(mp: &QueryMap) -> anyhow::Result<Self> {
+        let name = mp.map.get("name").e_str("User needs a Name")?.to_string();
+        let pass = mp
+            .map
+            .get("pass")
+            .e_str("User needs a Password")?
+            .to_string();
         Ok(Self { name, pass })
     }
 

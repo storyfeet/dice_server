@@ -73,8 +73,13 @@ pub fn get_data<'a, T: DeserializeOwned>(
 
 async fn page(req: Request<Body>) -> HRes<Body> {
     let (ct, s) = match req.uri().path() {
-        "/" => (CT_HTML, include_str!("static/index.html")),
+        "/" => {
+            return Ok(Response::builder()
+                .header(CONTENT_TYPE, CT_HTML)
+                .body(format!(include_str!("static/index.html"), "undefined").into())?);
+        }
         "/static/jquery.min.js" => (CT_JS, include_str!("static/jquery.min.js")),
+        "/static/requests.js" => (CT_JS, include_str!("static/requests.js")),
         "/static/main.css" => (CT_CSS, include_str!("static/main.css")),
         _ => e_str("Path did not reach anything")?,
     };
@@ -104,16 +109,21 @@ async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
     ok_json(auth, user.name)
 }
 
-async fn login(req: Request<Body>, st: State) -> HRes<Body> {
-    println!("Login Called");
-    let user = user::User::from_query(req.uri().query().e_str("No Params")?)?;
+async fn process_login(req: Request<Body>, st: State) -> anyhow::Result<Auth<String>> {
+    let (_, qmap) = split_param_data(req).await?;
+    let user = user::User::from_qmap(&qmap)?;
     let users = st.db.open_tree(TBL_USERS)?;
     let hu: user::HashUser = get_data(&users, &user.name)?.e_str("User does not exist")?;
     if !hu.verify(&user) {
         return e_str("Could not verify user");
     }
-    let auth = st.auth.new_auth(user.name.clone());
-    ok_json(auth, user.name)
+    Ok(st.auth.new_auth(user.name.clone()))
+}
+
+async fn login(req: Request<Body>, st: State) -> HRes<Body> {
+    let auth = process_login(req, st).await?;
+    let dt = auth.data.clone();
+    ok_json(auth, dt)
 }
 
 pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
@@ -128,7 +138,6 @@ pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
 
 pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
     let (p, qmap) = split_param_data(req).await?;
-
     let auth = st.auth.check_qdata(&qmap)?;
 
     let g_tbl = st.db.open_tree(TBL_GUESTS)?;
@@ -140,12 +149,24 @@ pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
     ok_json(auth, "{}")
 }
 
+async fn qlogin(req: Request<Body>, st: State) -> HRes<Body> {
+    let rp = Response::builder().header(CONTENT_TYPE, CT_HTML);
+    match process_login(req, st).await {
+        Ok(au) => {
+            let aj = serde_json::to_string(&au)?;
+            Ok(rp.body(format!(include_str!("static/index.html"), aj).into())?)
+        }
+        Err(_) => Ok(rp.body(format!(include_str!("static/index.html"), "undefined").into())?),
+    }
+}
+
 async fn muxer(req: Request<Body>, st: State) -> anyhow::Result<Response<Body>> {
     let res = match req.uri().path() {
         "/new_user" => new_user(req, st).await,
         "/login" => login(req, st).await,
         "/renew_login" => renew_login(req, st).await,
         "/create_guest" => create_guest(req, st).await,
+        "/qlogin" => qlogin(req, st).await,
         _ => page(req).await,
     };
     match res {

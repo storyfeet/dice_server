@@ -5,6 +5,7 @@
         <meta charset="utf-8">
         <link rel="stylesheet" href="/static/main.css">
         <script src="/static/jquery.min.js"></script>
+        <script src="/static/requests.js"></script>
     </head>
 <body>
     <h1>Dice Chat forms</h1> 
@@ -27,66 +28,26 @@
         <input type="submit" value="login">
     </form>
 
-    <form action="create_guest" method="POST" onsubmit='event.preventDefault();return submitter(this,showNewGuest)'>
-        <h3>Create Guest</h3>
+    <form action="create_room" method="POST" onsubmit='event.preventDefault();return submitter(this,showNewGuest)'>
+        <h3>Create Room</h3>
         <p>Name: <input name="name"/></p>
-        <p>Rooms: <input name="rooms"/></p>
         <input type="submit" value="create guest">
     </form>
 
+    <form action="set_permissions" method="POST" onsubmit='return set_permissions(event)'>
+        <h3>Set Permissions</h3>
+        <p>Room: <input name="room"/></p>
+        <p>Name: <input name="name"/></p>
+        <p>Read: <input name="read"/></p>
+        <p>Write: <input name="write"/></p>
+        <p>Create: <input name="create"/></p>
+        <input type="submit" value="Set Permissions">
+    </form>
+
 <script>
-
-    my_auth=undefined;
+    my_auth={};
     requests = 0;
-    function showNewUser(dt){
-        console.log("NewUser result : ",dt);
-        $(".output-span").text("NewUser: " + dt);
-    }
-
-    function showLogin(dt){
-        console.log("Login Success : ",dt);
-        $(".output-span").text("Login: " + dt);
-    }
-
-    function showNewGuest(dt){
-        console.log("Created Guest : ",dt);
-        $(".output-span").text("New Guest: " + dt);
-    }
-
-    function submitter(form,f){
-        //form.preventDefault();
-        f = f || showNewUser;
-        console.log("form submitted : ",form);
-        let form_ser = $(form).serializeArray();
-        if (my_auth) form_ser.push({name:"auth",value:my_auth.k})
-            else form_ser.push({name:"no-auth",value:"food"});
-        console.log("Form Serialized = ",form_ser);
-        
-        jQuery.ajax({
-            url : form.action,
-            data: form_ser,
-            type: form.method || "GET",
-            success: (dt)=>{
-                requests += 1;
-                $(".request-count").text(requests);
-                if (dt.err ) {
-                        console.log("ERR,",dt.err);
-                        $(".err-box").text("ERROR: " + dt.err);
-                }
-                if (dt.auth) {
-                    console.log("AUTH,",dt.auth);
-                    my_auth = dt.auth;
-                }
-                if (dt.data) f(dt.data);
-            },
-
-        });
-        console.log("JQuery form happy");
-        return false;
-    }
-    
-
-
 </script>
+
 </body>
 </html>
