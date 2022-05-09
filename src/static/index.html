@@ -30,8 +30,14 @@
 
     <form action="create_room" method="POST" onsubmit='event.preventDefault();return submitter(this,showNewGuest)'>
         <h3>Create Room</h3>
-        <p>Name: <input name="name"/></p>
-        <input type="submit" value="create guest">
+        <p>Name: <input name="room_name"/></p>
+        <input type="submit" value="Create Room">
+    </form>
+
+    <form action="list_rooms" method="GET" onsubmit="return list_rooms(event)">
+        <h3>List Rooms</h3>
+        <p>Name:<input name="name"></p>
+        <input type="submit" value="List Rooms">
     </form>
 
     <form action="set_permissions" method="POST" onsubmit='return set_permissions(event)'>

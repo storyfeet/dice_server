@@ -23,7 +23,8 @@ const CT_JSON: &str = "application/json";
 const CT_CSS: &str = "text/css";
 
 const TBL_USERS: &str = "users";
-const TBL_GUESTS: &str = "guests";
+//const TBL_GUESTS: &str = "guests";
+const TBL_ROOM_LIST: &str = "room_list";
 //const TBL_ROOMS: &str = "rooms";
 //const TBL_DATA: &str = "data"; //Scenes,templates,characters,
 
@@ -44,7 +45,7 @@ pub async fn split_param_data(
 
 #[derive(Serialize)]
 pub struct AuthResponse<T: Clone + Serialize, R: Serialize> {
-    auth: Auth<T>,
+    auth: Option<Auth<T>>,
     data: R,
 }
 
@@ -54,7 +55,7 @@ pub struct NewUser {
     password: String,
 }
 
-pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Auth<T>, data: D) -> HRes<Body> {
+pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Option<Auth<T>>, data: D) -> HRes<Body> {
     let au = AuthResponse { auth, data };
     Ok(Response::builder()
         .header(CONTENT_TYPE, CT_JSON)
@@ -106,7 +107,7 @@ async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
     )?;
 
     let auth = st.auth.new_auth(user.name.clone());
-    ok_json(auth, user.name)
+    ok_json(Some(auth), user.name)
 }
 
 async fn process_login(req: Request<Body>, st: State) -> anyhow::Result<Auth<String>> {
@@ -123,7 +124,7 @@ async fn process_login(req: Request<Body>, st: State) -> anyhow::Result<Auth<Str
 async fn login(req: Request<Body>, st: State) -> HRes<Body> {
     let auth = process_login(req, st).await?;
     let dt = auth.data.clone();
-    ok_json(auth, dt)
+    ok_json(Some(auth), dt)
 }
 
 pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
@@ -133,10 +134,54 @@ pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
 
     let users = st.db.open_tree(TBL_USERS)?;
     let hu: user::HashUser = get_data(&users, &auth.data)?.e_str("Login for non existent user")?;
-    ok_json(auth, hu.name)
+    ok_json(Some(auth), hu.name)
 }
 
-pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
+pub async fn create_room(req: Request<Body>, st: State) -> HRes<Body> {
+    let (_p, qmap) = split_param_data(req).await?;
+    let auth = st.auth.check_qdata(&qmap)?;
+    let rname = qmap
+        .map
+        .get("room_name")
+        .e_str("no room name provided to create room")?;
+
+    //Get users room list
+    let room_list = st.db.open_tree(TBL_ROOM_LIST)?;
+    let mut list: Vec<String> = match get_data(&room_list, &auth.data) {
+        Ok(Some(d)) => d,
+        Ok(None) => Vec::new(),
+        Err(e) => return Err(e),
+    };
+    if !list.contains(rname) {
+        list.push(rname.to_string());
+        room_list.insert(
+            &auth.data.as_bytes(),
+            serde_json::to_string(&list)?.as_bytes(),
+        )?;
+    }
+
+    ok_json(Some(auth), rname.to_string())
+}
+
+pub async fn list_rooms(req: Request<Body>, st: State) -> HRes<Body> {
+    let (_p, qmap) = split_param_data(req).await?;
+    let rname = match qmap.map.get("name") {
+        Some(s) => s.to_string(),
+        None => st.auth.check_qdata(&qmap)?.data,
+    };
+    let room_list = st.db.open_tree(TBL_ROOM_LIST)?;
+    let list: Vec<String> = match get_data(&room_list, &rname) {
+        Ok(Some(d)) => {
+            println!("GOT LIST:{:?}", d);
+            d
+        }
+        Ok(None) => Vec::new(),
+        Err(e) => return Err(e),
+    };
+    ok_json::<(), _>(None, &list)
+}
+
+/*pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
     let (p, qmap) = split_param_data(req).await?;
     let auth = st.auth.check_qdata(&qmap)?;
 
@@ -147,7 +192,7 @@ pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
     glist.push(newguest);
     g_tbl.insert(&auth.data, serde_json::to_string(&glist)?.as_bytes())?;
     ok_json(auth, "{}")
-}
+}*/
 
 async fn qlogin(req: Request<Body>, st: State) -> HRes<Body> {
     let rp = Response::builder().header(CONTENT_TYPE, CT_HTML);
@@ -165,7 +210,9 @@ async fn muxer(req: Request<Body>, st: State) -> anyhow::Result<Response<Body>> 
         "/new_user" => new_user(req, st).await,
         "/login" => login(req, st).await,
         "/renew_login" => renew_login(req, st).await,
-        "/create_guest" => create_guest(req, st).await,
+        //      "/create_guest" => create_guest(req, st).await,
+        "/create_room" => create_room(req, st).await,
+        "/list_rooms" => list_rooms(req, st).await,
         "/qlogin" => qlogin(req, st).await,
         _ => page(req).await,
     };

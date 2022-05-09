@@ -12,6 +12,14 @@ function set_permissions(e){
     return false;
 }
 
+function list_rooms(e){
+    e.preventDefault();
+    submitter(e.target,(dt)=>{
+        output("Room List"+dt);
+    });
+    return false;
+}
+
 function showNewUser(dt){
     output("Newuser : "+dt);
 }

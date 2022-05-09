@@ -16,11 +16,24 @@ pub enum EventType {
 
 pub enum Template {}
 
+#[derive(Serialize, Deserialize)]
 pub struct Room {
     logs: Vec<String>,
     permissions: Vec<Permission>,
+    data: Vec<String>,
 }
 
+impl Room {
+    pub fn new() -> Self {
+        Self {
+            logs: Vec::new(),
+            permissions: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Permission {
     name: Option<String>,
     rooms: Vec<String>,
