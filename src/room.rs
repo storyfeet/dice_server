@@ -35,9 +35,52 @@ impl Room {
 
 #[derive(Serialize, Deserialize)]
 pub struct Permission {
-    name: Option<String>,
-    rooms: Vec<String>,
-    read: Vec<String>,
-    write: Vec<String>,
-    create: Vec<String>,
+    /// _ for everyone, comma separated list of names
+    pub names: String,
+    ///Comma separated list of paths
+    pub read: String,
+    ///Comma separated list of paths
+    pub write: String,
+    ///Comma separated list of paths
+    pub create: String,
+}
+
+impl Permission {
+    fn permit_path(ss: &str, needle: &str) -> bool {
+        for s in ss.split(",") {
+            let t = s.trim();
+            if t == "" {
+                continue;
+            }
+            if needle.starts_with(t) {
+                return true;
+            }
+        }
+        false
+    }
+    pub fn permit_name(&self, name: &str) -> bool {
+        for s in self.names.split(",") {
+            let t = s.trim();
+            if t == "" {
+                continue;
+            }
+            if t == "_" {
+                return true;
+            }
+            if t == name {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn permit_read(&self, name: &str, path: &str) -> bool {
+        self.permit_name(name) && Self::permit_path(&self.read, path)
+    }
+    pub fn permit_write(&self, name: &str, path: &str) -> bool {
+        self.permit_name(name) && Self::permit_path(&self.write, path)
+    }
+    pub fn permit_create(&self, name: &str, path: &str) -> bool {
+        self.permit_name(name) && Self::permit_path(&self.create, path)
+    }
 }

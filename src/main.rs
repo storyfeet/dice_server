@@ -205,6 +205,15 @@ async fn qlogin(req: Request<Body>, st: State) -> HRes<Body> {
     }
 }
 
+async fn set_permissions(req: Request<Body>, st: State) -> HRes<Body> {
+    let (_p, qmap) = split_param_data(req).await?;
+    let rname = qmap.get("room_name").e_str("No room_name provided")?;
+    let guest_name = qmap.get("guest_name").e_str("No guest_name provided")?;
+    let read = qmap.get("read").unwrap_or("");
+    let write = qmap.get("write").unwrap_or("");
+    let create = qmap.get("create").unwrap_or("");
+}
+
 async fn muxer(req: Request<Body>, st: State) -> anyhow::Result<Response<Body>> {
     let res = match req.uri().path() {
         "/new_user" => new_user(req, st).await,

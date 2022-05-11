@@ -61,4 +61,8 @@ impl QueryMap {
         }
         Self { map }
     }
+
+    pub fn get<'a>(&'a self, s: &str) -> Option<&'a str> {
+        self.map.get(s).map(String::as_str)
+    }
 }
