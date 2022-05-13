@@ -42,12 +42,18 @@
 
     <form action="set_permissions" method="POST" onsubmit='return set_permissions(event)'>
         <h3>Set Permissions</h3>
-        <p>Room: <input name="room"/></p>
-        <p>Name: <input name="name"/></p>
+        <p>Room: <input name="room_name"/></p>
+        <p>Names: <input name="names"/></p>
         <p>Read: <input name="read"/></p>
         <p>Write: <input name="write"/></p>
         <p>Create: <input name="create"/></p>
         <input type="submit" value="Set Permissions">
+    </form>
+
+    <form action="view_permissions" method="GET" onsubmit='return view_permissions(event);'>
+        <h3>View Permissions</h3>
+        <p>Room Path: <input name="room_path"/></p>
+        <input type="submit" value="View Permissions">
     </form>
 
 

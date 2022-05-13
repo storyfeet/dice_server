@@ -14,13 +14,11 @@ pub enum EventType {
     Roll(String), //Consider making a Roll
 }
 
-pub enum Template {}
-
 #[derive(Serialize, Deserialize)]
 pub struct Room {
-    logs: Vec<String>,
-    permissions: Vec<Permission>,
-    data: Vec<String>,
+    pub logs: Vec<String>,
+    pub permissions: Vec<Permission>,
+    pub data: Vec<String>,
 }
 
 impl Room {
@@ -30,6 +28,26 @@ impl Room {
             permissions: Vec::new(),
             data: Vec::new(),
         }
+    }
+
+    pub fn guest_permissions(&self, gname: &str) -> Permission {
+        let mut res = Permission {
+            names: gname.to_string(),
+            read: String::new(),
+            write: String::new(),
+            create: String::new(),
+        };
+        for p in &self.permissions {
+            if p.permit_name(gname) {
+                res.read.push_str(&p.read);
+                res.read.push(',');
+                res.write.push_str(&p.write);
+                res.write.push(',');
+                res.create.push_str(&p.create);
+                res.create.push(',');
+            }
+        }
+        res
     }
 }
 

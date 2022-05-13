@@ -12,6 +12,14 @@ function set_permissions(e){
     return false;
 }
 
+function view_permissions(e){
+    e.preventDefault();
+    submitter(e.target,(dt)=>{
+        output("Permissions are: "+dt);
+    });
+    return false;
+}
+
 function list_rooms(e){
     e.preventDefault();
     submitter(e.target,(dt)=>{
@@ -58,7 +66,10 @@ function submitter(form,f){
                 console.log("AUTH,",dt.auth);
                 my_auth = dt.auth;
             }
-            if (dt.data) f(dt.data);
+            if (dt.data){
+                console.log("DATA:",dt.data);
+                f(dt.data);
+            }
         },
 
     });

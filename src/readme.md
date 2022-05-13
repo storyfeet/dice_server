@@ -12,7 +12,9 @@ Databases:
 
     Guests(Username):
         List(User):
-            permissions 
+            auth??
+    Rooms(username/roomname):
+         
 
     Events(Username/Roomname):
         List: Event

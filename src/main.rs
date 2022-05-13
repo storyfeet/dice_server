@@ -13,6 +13,7 @@ use auth::Auth;
 use hyper::{service::*, *};
 use serde::{de::DeserializeOwned, Serialize};
 //use std::convert::Infallible;
+use room::{Permission, Room};
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -25,7 +26,7 @@ const CT_CSS: &str = "text/css";
 const TBL_USERS: &str = "users";
 //const TBL_GUESTS: &str = "guests";
 const TBL_ROOM_LIST: &str = "room_list";
-//const TBL_ROOMS: &str = "rooms";
+const TBL_ROOMS: &str = "rooms";
 //const TBL_DATA: &str = "data"; //Scenes,templates,characters,
 
 type HRes<T> = anyhow::Result<Response<T>>;
@@ -62,6 +63,10 @@ pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Option<Auth<T>>, data: 
         .body(serde_json::to_string(&au)?.into())?)
 }
 
+pub fn put_data<V: Serialize>(t: &sled::Tree, k: &str, v: &V) -> anyhow::Result<()> {
+    t.insert(k.as_bytes(), serde_json::to_string(v)?.as_bytes())?;
+    Ok(())
+}
 pub fn get_data<'a, T: DeserializeOwned>(
     t: &'a sled::Tree,
     name: &str,
@@ -181,19 +186,6 @@ pub async fn list_rooms(req: Request<Body>, st: State) -> HRes<Body> {
     ok_json::<(), _>(None, &list)
 }
 
-/*pub async fn create_guest(req: Request<Body>, st: State) -> HRes<Body> {
-    let (p, qmap) = split_param_data(req).await?;
-    let auth = st.auth.check_qdata(&qmap)?;
-
-    let g_tbl = st.db.open_tree(TBL_GUESTS)?;
-
-    let newguest = serde_urlencoded::from_str(p.uri.query().e_str("no guest data")?)?;
-    let mut glist: Vec<guests::Guest> = get_data(&g_tbl, &auth.data)?.unwrap_or(Vec::new());
-    glist.push(newguest);
-    g_tbl.insert(&auth.data, serde_json::to_string(&glist)?.as_bytes())?;
-    ok_json(auth, "{}")
-}*/
-
 async fn qlogin(req: Request<Body>, st: State) -> HRes<Body> {
     let rp = Response::builder().header(CONTENT_TYPE, CT_HTML);
     match process_login(req, st).await {
@@ -207,11 +199,51 @@ async fn qlogin(req: Request<Body>, st: State) -> HRes<Body> {
 
 async fn set_permissions(req: Request<Body>, st: State) -> HRes<Body> {
     let (_p, qmap) = split_param_data(req).await?;
+    let auth = st.auth.check_qdata(&qmap)?;
     let rname = qmap.get("room_name").e_str("No room_name provided")?;
-    let guest_name = qmap.get("guest_name").e_str("No guest_name provided")?;
-    let read = qmap.get("read").unwrap_or("");
-    let write = qmap.get("write").unwrap_or("");
-    let create = qmap.get("create").unwrap_or("");
+    let rpath = format!("{}/{}", auth.data, rname);
+    let names = qmap
+        .get("names")
+        .e_str("No guest_name provided")?
+        .to_string();
+    let read = qmap.get("read").unwrap_or("").to_string();
+    let write = qmap.get("write").unwrap_or("").to_string();
+    let create = qmap.get("create").unwrap_or("").to_string();
+    let rooms = st.db.open_tree(TBL_ROOMS)?;
+    let mut r: Room = match get_data(&rooms, &rpath) {
+        Ok(Some(r)) => r,
+        Err(e) => return e_string(format!("Could not read room:{} - {}", rpath, e)),
+        Ok(None) => Room::new(),
+    };
+    r.permissions.push(Permission {
+        names,
+        read,
+        write,
+        create,
+    });
+    put_data(&rooms, &rpath, &r)?;
+    ok_json(Some(auth), r)
+}
+
+async fn view_permissions(req: Request<Body>, st: State) -> HRes<Body> {
+    let (_p, qmap) = split_param_data(req).await?;
+    let auth = st.auth.check_qdata(&qmap)?;
+    let rpath = qmap.get("room_path").e_str("No room_path provided")?;
+    let owner = rpath.split("/").next().unwrap();
+
+    let rooms = st.db.open_tree(TBL_ROOMS)?;
+    let r: Room = match get_data(&rooms, &rpath) {
+        Ok(Some(r)) => r,
+        Err(e) => return e_string(format!("Could not read room:{} - {}", rpath, e)),
+        Ok(None) => Room::new(),
+    };
+
+    if owner == auth.data {
+        ok_json(Some(auth), &r.permissions)
+    } else {
+        let p = r.guest_permissions(&auth.data);
+        ok_json(Some(auth), &p)
+    }
 }
 
 async fn muxer(req: Request<Body>, st: State) -> anyhow::Result<Response<Body>> {
@@ -219,7 +251,8 @@ async fn muxer(req: Request<Body>, st: State) -> anyhow::Result<Response<Body>> 
         "/new_user" => new_user(req, st).await,
         "/login" => login(req, st).await,
         "/renew_login" => renew_login(req, st).await,
-        //      "/create_guest" => create_guest(req, st).await,
+        "/set_permissions" => set_permissions(req, st).await,
+        "/view_permissions" => view_permissions(req, st).await,
         "/create_room" => create_room(req, st).await,
         "/list_rooms" => list_rooms(req, st).await,
         "/qlogin" => qlogin(req, st).await,
