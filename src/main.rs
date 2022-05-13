@@ -3,6 +3,7 @@ mod auth;
 mod guests;
 mod room;
 mod state;
+mod tree_wrap;
 mod uri_reader;
 mod user;
 use err_tools::*;
@@ -11,10 +12,12 @@ use uri_reader::QueryMap;
 //use std::sync::{Arc, Mutex};
 use auth::Auth;
 use hyper::{service::*, *};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::Serialize;
+use tree_wrap::TreeGetPut;
 //use std::convert::Infallible;
 use room::{Permission, Room};
-use std::ops::Deref;
+use sled::transaction::abort;
+
 use std::str::FromStr;
 
 const CONTENT_TYPE: &str = "Content-Type";
@@ -63,20 +66,6 @@ pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Option<Auth<T>>, data: 
         .body(serde_json::to_string(&au)?.into())?)
 }
 
-pub fn put_data<V: Serialize>(t: &sled::Tree, k: &str, v: &V) -> anyhow::Result<()> {
-    t.insert(k.as_bytes(), serde_json::to_string(v)?.as_bytes())?;
-    Ok(())
-}
-pub fn get_data<'a, T: DeserializeOwned>(
-    t: &'a sled::Tree,
-    name: &str,
-) -> anyhow::Result<Option<T>> {
-    match t.get(name)? {
-        Some(v) => Ok(serde_json::from_str(std::str::from_utf8(v.deref())?)?),
-        None => Ok(None),
-    }
-}
-
 async fn page(req: Request<Body>) -> HRes<Body> {
     let (ct, s) = match req.uri().path() {
         "/" => {
@@ -100,16 +89,13 @@ async fn new_user(req: Request<Body>, st: State) -> HRes<Body> {
 
     let user = user::User::from_query(req.uri().query().e_str("No Params")?)?.hash()?;
     let users = st.db.open_tree(TBL_USERS)?;
-    match get_data::<user::HashUser>(&users, &user.name) {
+    match users.get_item::<user::HashUser>(&user.name) {
         Ok(None) => {}
         Ok(Some(_)) => return e_str("User already exists"),
         Err(_) => return e_str("Could not access Users"),
     }
 
-    users.insert(
-        &user.name.as_bytes(),
-        serde_json::to_string(&user)?.as_bytes(),
-    )?;
+    users.put_item(&user.name, &user)?;
 
     let auth = st.auth.new_auth(user.name.clone());
     ok_json(Some(auth), user.name)
@@ -119,7 +105,7 @@ async fn process_login(req: Request<Body>, st: State) -> anyhow::Result<Auth<Str
     let (_, qmap) = split_param_data(req).await?;
     let user = user::User::from_qmap(&qmap)?;
     let users = st.db.open_tree(TBL_USERS)?;
-    let hu: user::HashUser = get_data(&users, &user.name)?.e_str("User does not exist")?;
+    let hu: user::HashUser = users.get_item(&user.name)?.e_str("User does not exist")?;
     if !hu.verify(&user) {
         return e_str("Could not verify user");
     }
@@ -138,7 +124,9 @@ pub async fn renew_login(req: Request<Body>, st: State) -> HRes<Body> {
     let auth = st.auth.check_qdata(&qmap)?;
 
     let users = st.db.open_tree(TBL_USERS)?;
-    let hu: user::HashUser = get_data(&users, &auth.data)?.e_str("Login for non existent user")?;
+    let hu: user::HashUser = users
+        .get_item(&auth.data)?
+        .e_str("Login for non existent user")?;
     ok_json(Some(auth), hu.name)
 }
 
@@ -152,7 +140,7 @@ pub async fn create_room(req: Request<Body>, st: State) -> HRes<Body> {
 
     //Get users room list
     let room_list = st.db.open_tree(TBL_ROOM_LIST)?;
-    let mut list: Vec<String> = match get_data(&room_list, &auth.data) {
+    let mut list: Vec<String> = match room_list.get_item(&auth.data) {
         Ok(Some(d)) => d,
         Ok(None) => Vec::new(),
         Err(e) => return Err(e),
@@ -175,7 +163,7 @@ pub async fn list_rooms(req: Request<Body>, st: State) -> HRes<Body> {
         None => st.auth.check_qdata(&qmap)?.data,
     };
     let room_list = st.db.open_tree(TBL_ROOM_LIST)?;
-    let list: Vec<String> = match get_data(&room_list, &rname) {
+    let list: Vec<String> = match room_list.get_item(&rname) {
         Ok(Some(d)) => {
             println!("GOT LIST:{:?}", d);
             d
@@ -202,27 +190,35 @@ async fn set_permissions(req: Request<Body>, st: State) -> HRes<Body> {
     let auth = st.auth.check_qdata(&qmap)?;
     let rname = qmap.get("room_name").e_str("No room_name provided")?;
     let rpath = format!("{}/{}", auth.data, rname);
-    let names = qmap
-        .get("names")
-        .e_str("No guest_name provided")?
-        .to_string();
-    let read = qmap.get("read").unwrap_or("").to_string();
-    let write = qmap.get("write").unwrap_or("").to_string();
-    let create = qmap.get("create").unwrap_or("").to_string();
+    let names = qmap.get("names").e_str("No guest_name provided")?;
+    let read = qmap.get("read").unwrap_or("");
+    let write = qmap.get("write").unwrap_or("");
+    let create = qmap.get("create").unwrap_or("");
     let rooms = st.db.open_tree(TBL_ROOMS)?;
-    let mut r: Room = match get_data(&rooms, &rpath) {
-        Ok(Some(r)) => r,
-        Err(e) => return e_string(format!("Could not read room:{} - {}", rpath, e)),
-        Ok(None) => Room::new(),
-    };
-    r.permissions.push(Permission {
-        names,
-        read,
-        write,
-        create,
+    let tran_res = rooms.transaction(|db| {
+        let mut croom: Room = match db.get_item(&rpath) {
+            Ok(Some(r)) => r,
+            Err(e) => abort(anyhow::Error::from(SgError(format!(
+                "Could not read room:{} - {}",
+                rpath, e
+            ))))?,
+            Ok(None) => Room::new(),
+        };
+        croom.permissions.push(Permission {
+            names: names.to_string(),
+            read: read.to_string(),
+            write: write.to_string(),
+            create: create.to_string(),
+        });
+        if let Err(e) = db.put_item(&rpath, &croom) {
+            abort(e)?;
+        }
+        Ok(croom)
     });
-    put_data(&rooms, &rpath, &r)?;
-    ok_json(Some(auth), r)
+    match tran_res {
+        Ok(r) => ok_json(Some(auth), r),
+        Err(_e) => e_str("Error performing transaction"),
+    }
 }
 
 async fn view_permissions(req: Request<Body>, st: State) -> HRes<Body> {
@@ -232,7 +228,7 @@ async fn view_permissions(req: Request<Body>, st: State) -> HRes<Body> {
     let owner = rpath.split("/").next().unwrap();
 
     let rooms = st.db.open_tree(TBL_ROOMS)?;
-    let r: Room = match get_data(&rooms, &rpath) {
+    let r: Room = match rooms.get_item(&rpath) {
         Ok(Some(r)) => r,
         Err(e) => return e_string(format!("Could not read room:{} - {}", rpath, e)),
         Ok(None) => Room::new(),
