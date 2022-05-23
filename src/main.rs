@@ -1,5 +1,6 @@
 use serde_derive::*;
 mod auth;
+mod content_type;
 mod guests;
 mod room;
 mod state;
@@ -15,16 +16,11 @@ use hyper::{service::*, *};
 use serde::Serialize;
 use tree_wrap::TreeGetPut;
 //use std::convert::Infallible;
+use content_type::*;
 use room::{Permission, Room};
 use sled::transaction::abort;
 
 use std::str::FromStr;
-
-const CONTENT_TYPE: &str = "Content-Type";
-const CT_HTML: &str = "text/html";
-const CT_JS: &str = "application/javascript";
-const CT_JSON: &str = "application/json";
-const CT_CSS: &str = "text/css";
 
 const TBL_USERS: &str = "users";
 //const TBL_GUESTS: &str = "guests";
@@ -66,6 +62,22 @@ pub fn ok_json<T: Serialize + Clone, D: Serialize>(auth: Option<Auth<T>>, data: 
         .body(serde_json::to_string(&au)?.into())?)
 }
 
+async fn live_page(req: Request<Body>) -> HRes<Body> {
+    let path = req.uri().path().trim_start_matches("/");
+    if path.contains("../") {
+        return e_str("No Up Paths allowed");
+    }
+
+    let mut pbuf = std::path::PathBuf::from("live");
+    pbuf.push(path);
+    let f = std::fs::read(&pbuf).e_string(format!("Nothing at path:{:?}", pbuf))?;
+    let ct = ctype_from_path(&pbuf);
+
+    Ok(Response::builder()
+        .header(CONTENT_TYPE, ct)
+        .body(f.into())?)
+}
+
 async fn page(req: Request<Body>) -> HRes<Body> {
     let (ct, s) = match req.uri().path() {
         "/" => {
@@ -76,7 +88,7 @@ async fn page(req: Request<Body>) -> HRes<Body> {
         "/static/jquery.min.js" => (CT_JS, include_str!("static/jquery.min.js")),
         "/static/requests.js" => (CT_JS, include_str!("static/requests.js")),
         "/static/main.css" => (CT_CSS, include_str!("static/main.css")),
-        _ => e_str("Path did not reach anything")?,
+        _ => return live_page(req).await,
     };
 
     Ok(Response::builder()
