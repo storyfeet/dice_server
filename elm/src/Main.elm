@@ -1,12 +1,14 @@
 module Main exposing(main)
 import Html exposing(..)
 import Html.Attributes exposing(..)
-import Html.Events exposing(onSubmit)
 import Browser 
+import MyForms exposing(..)
+import Message exposing(..)
 
 
-type alias Model = 
+type alias Model =
     { login : Login
+    
     }
 
 
@@ -19,6 +21,10 @@ type Login
     = Out
     | In Auth
 
+
+
+    
+
 init : () -> (Model ,Cmd Msg)
 init _ = 
     ({ login= Out
@@ -26,31 +32,20 @@ init _ =
 
 
 update: Msg -> Model -> (Model ,Cmd Msg)
-update _ md = 
+update mes mod = 
+    case mes of 
+        Sad -> 
     (md, Cmd.none)
 
-qInput nam typ = div []
-    [ text (nam ++":")
-    , input [type_ typ, name nam] []
-    ]
-
-
-
-qform : String -> String -> Msg -> List(Html msg) -> Html msg
-qform name ac mes content =
-    Html.form [action ac , onSubmit mes] 
-        [ div []
-            (( h2 [] [text name])::content ++ [(qInput name "submit")])
-        ]
             
             
 loginForm
-    = qform "login" "/login" LoginSubmit
-        [ qInput "name" "text"
-        , qInput "pass" "password"
+    = qform "login" "/login" Sad
+        [ qInput "name" "text" (\s ->LoginUpdate <| Name s)
+        , qInput "pass" "password" (\s -> LoginUpdate <| Name )
         ]
 
-
+    
 
 view : Model -> Html Msg
 view md = div [] 
@@ -61,12 +56,8 @@ view md = div []
     ]
 
 
-type Msg
-    = Happy
-    | Sad
-    | LoginSubmit form.Msg
 
-subscriptions : Model -> Sub msg
+subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.none
 
