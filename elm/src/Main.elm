@@ -1,7 +1,8 @@
 module Main exposing(main)
 import Html exposing(..)
 import Html.Attributes exposing(..)
-import Browser exposing (element)
+import Html.Events exposing(onSubmit)
+import Browser 
 
 
 type alias Model = 
@@ -35,16 +36,16 @@ qInput nam typ = div []
 
 
 
-qform : String -> String -> List(Html msg) -> Html msg
-qform name ac content =
-    Html.form [action ac] 
+qform : String -> String -> Msg -> List(Html msg) -> Html msg
+qform name ac mes content =
+    Html.form [action ac , onSubmit mes] 
         [ div []
             (( h2 [] [text name])::content ++ [(qInput name "submit")])
         ]
             
             
 loginForm
-    = qform "login" "/login" 
+    = qform "login" "/login" LoginSubmit
         [ qInput "name" "text"
         , qInput "pass" "password"
         ]
@@ -63,6 +64,7 @@ view md = div []
 type Msg
     = Happy
     | Sad
+    | LoginSubmit form.Msg
 
 subscriptions : Model -> Sub msg
 subscriptions model =
