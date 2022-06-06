@@ -18,7 +18,7 @@ type alias Auth =
     }
 
 type Login 
-    = Out
+    = Out LoginModel
     | In Auth
 
 
@@ -27,22 +27,25 @@ type Login
 
 init : () -> (Model ,Cmd Msg)
 init _ = 
-    ({ login= Out
+    ({ login= Out {name="", password=""}
     }, Cmd.none)
+
+
 
 
 update: Msg -> Model -> (Model ,Cmd Msg)
 update mes mod = 
-    case mes of 
-        Sad -> 
-    (md, Cmd.none)
+    case (mes, mod.login) of 
+        (LoginSubmit,Out lm) -> (mod,loginRequest lm)
+        (GotLogin (Ok s),_) -> ({mod|login = In {key="", name=s}} ,Cmd.none)
+        _ -> (mod ,Cmd.none)
 
             
             
 loginForm
-    = qform "login" "/login" Sad
+    = qform "login" "/login" LoginSubmit
         [ qInput "name" "text" (\s ->LoginUpdate <| Name s)
-        , qInput "pass" "password" (\s -> LoginUpdate <| Name )
+        , qInput "pass" "password" (\s -> LoginUpdate <| Name s)
         ]
 
     
@@ -51,7 +54,7 @@ view : Model -> Html Msg
 view md = div [] 
     [ h1 [] [text "Elm Dice"]
     , case md.login of
-        Out -> loginForm
+        Out _ -> loginForm
         In a -> p [] [text ("welcome " ++ a.name)]
     ]
 

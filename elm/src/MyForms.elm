@@ -5,6 +5,9 @@ import Html exposing(..)
 import Html.Attributes exposing(..)
 import Html.Events exposing(..)
 
+import Http exposing(..)
+import Url.Builder exposing(..)
+
 
 qInput : String -> String -> (String -> Msg) -> Html Msg
 qInput nam typ mes= 
@@ -25,11 +28,21 @@ qform nam ac mes content =
             full  
         ] 
 
+
+
 type alias LoginModel =
     { name: String
     , password: String
     }
 
+
+loginRequest : LoginModel -> Cmd Msg
+loginRequest lm =
+    Http.get
+    { url = absolute ["login"] [string "name" lm.name, string "pass" lm.password]
+    , expect = Http.expectString GotLogin
+    }
+        
     
 type alias CreateModel =
     { name: String

@@ -1,10 +1,12 @@
 module Message exposing(..)
+import Http
 
 type Msg
     = Happy String
-    | Sad
+    | LoginSubmit
     | LoginUpdate FormUpdate
     | SignupUpdate FormUpdate
+    | GotLogin (Result Http.Error String)
 
 type FormUpdate 
     = Name String
