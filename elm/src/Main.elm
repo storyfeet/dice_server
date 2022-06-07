@@ -5,6 +5,7 @@ import Browser
 import MyForms exposing(..)
 import Message exposing(..)
 import Out exposing(OutModel)
+import In exposing(InAuth)
 
 
 
@@ -14,14 +15,10 @@ type alias Model =
     }
 
 
-type alias Auth =
-    { name:String
-    , key:String
-    }
 
 type LoginStatus
     = Out OutModel
-    | In Auth
+    | In InAuth
 
 
 
