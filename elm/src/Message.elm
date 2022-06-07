@@ -3,12 +3,15 @@ import Http
 
 type Msg
     = Happy String
-    | LoginSubmit
-    | LoginUpdate FormUpdate
-    | SignupUpdate FormUpdate
     | GotLogin (Result Http.Error String)
+    | GotSignup (Result Http.Error String)
+    | OutMsg OutMsg
 
-type FormUpdate 
-    = Name String
-    | Pass String
-    | Other String
+type OutMsg
+    = OUpdateName String
+    | OUpdatePass String
+    | OSubmit
+
+
+type InMessage
+    = Submit

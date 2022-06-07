@@ -9,6 +9,8 @@ import Http exposing(..)
 import Url.Builder exposing(..)
 
 
+
+
 qInput : String -> String -> (String -> Msg) -> Html Msg
 qInput nam typ mes= 
     div []
@@ -30,24 +32,14 @@ qform nam ac mes content =
 
 
 
-type alias LoginModel =
-    { name: String
-    , password: String
-    }
+
+updateName: a ->{ b |name:a}->{ b |name:a}
+updateName s f
+    = {f | name=s}
+updatePass: a ->{ b |password:a}->{ b |password:a}
+updatePass p f 
+    = {f| password=p}
 
 
-loginRequest : LoginModel -> Cmd Msg
-loginRequest lm =
-    Http.get
-    { url = absolute ["login"] [string "name" lm.name, string "pass" lm.password]
-    , expect = Http.expectString GotLogin
-    }
-        
-    
-type alias CreateModel =
-    { name: String
-    , password: String
-    }
 
 
- 

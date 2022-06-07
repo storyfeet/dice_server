@@ -4,11 +4,13 @@ import Html.Attributes exposing(..)
 import Browser 
 import MyForms exposing(..)
 import Message exposing(..)
+import Out exposing(OutModel)
+
+
 
 
 type alias Model =
-    { login : Login
-    
+    { loginStatus : LoginStatus
     }
 
 
@@ -17,8 +19,8 @@ type alias Auth =
     , key:String
     }
 
-type Login 
-    = Out LoginModel
+type LoginStatus
+    = Out OutModel
     | In Auth
 
 
@@ -27,7 +29,7 @@ type Login
 
 init : () -> (Model ,Cmd Msg)
 init _ = 
-    ({ login= Out {name="", password=""}
+    ({ loginStatus= Out Out.init
     }, Cmd.none)
 
 
@@ -35,26 +37,22 @@ init _ =
 
 update: Msg -> Model -> (Model ,Cmd Msg)
 update mes mod = 
-    case (mes, mod.login) of 
-        (LoginSubmit,Out lm) -> (mod,loginRequest lm)
-        (GotLogin (Ok s),_) -> ({mod|login = In {key="", name=s}} ,Cmd.none)
+    case (mes, mod.loginStatus) of 
+        (OutMsg m,Out os)-> 
+            let (l,c ) = Out.update m os in ({mod | loginStatus = Out l}, c)
+        (GotLogin (Ok s),_) -> ({mod|loginStatus = In {key="", name=s}} ,Cmd.none)
+        (GotSignup (Ok s),_) -> ({mod|loginStatus = In {key="", name=s}} ,Cmd.none)
         _ -> (mod ,Cmd.none)
+        
 
             
             
-loginForm
-    = qform "login" "/login" LoginSubmit
-        [ qInput "name" "text" (\s ->LoginUpdate <| Name s)
-        , qInput "pass" "password" (\s -> LoginUpdate <| Name s)
-        ]
-
-    
 
 view : Model -> Html Msg
 view md = div [] 
     [ h1 [] [text "Elm Dice"]
-    , case md.login of
-        Out _ -> loginForm
+    , case md.loginStatus of
+        Out m -> Out.view m
         In a -> p [] [text ("welcome " ++ a.name)]
     ]
 
