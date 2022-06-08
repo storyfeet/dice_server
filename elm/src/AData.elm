@@ -1,5 +1,5 @@
-module In exposing(..)
-import Json.Decode exposing (map3,Decoder,field,int,string,dict)
+module AData exposing(..)
+import Json.Decode exposing (map2,map3,Decoder,field,string,int)
 
 
 type alias AData dt = 
@@ -9,7 +9,7 @@ type alias AData dt =
 
 type alias InAuth =
     { k:String
-    , expires:String
+    , expires:Int
     , data: String
     }
 
@@ -17,12 +17,17 @@ authDecoder : Decoder InAuth
 authDecoder = 
     map3 InAuth
         (field "k" string)
-        (field "expires" string)
+        (field "expires" int)
         (field "data" string)
+
+
+aDecoder : Decoder a -> Decoder (AData a)
+aDecoder dc = 
+    map2 (AData)
+        (field "auth" authDecoder)
+        (field "data" dc)
 
 aStringDecoder : Decoder (AData String)
 aStringDecoder =
-    map2 (AData String)
-        (dict "auth" authDecoder)
-        (field "data" string)
+    aDecoder string
 

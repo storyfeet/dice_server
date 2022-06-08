@@ -4,6 +4,7 @@ import Html exposing(..)
 import MyForms exposing(..)
 import Http exposing(..)
 import Url.Builder exposing(..)
+import AData exposing (aStringDecoder)
 
 
 
@@ -63,13 +64,14 @@ loginRequest : LoginModel -> Cmd Msg
 loginRequest lm =
     Http.get
     { url = absolute ["login"] [string "name" lm.name, string "pass" lm.password]
-    , expect = Http.expectString GotLogin
+    , expect = Http.expectJson GotLogin aStringDecoder
     }
+
         
 signupRequest : LoginModel -> Cmd Msg
 signupRequest lm =
     Http.get
     { url = absolute ["login"] [string "name" lm.name, string "pass" lm.password]
-    , expect = Http.expectString GotLogin
+    , expect = Http.expectJson GotLogin aStringDecoder 
     }
     
