@@ -18,16 +18,22 @@ type OutForm
     | Signup LoginModel
 
 
+
 init: OutModel
 init = 
-    { form = Login {name="" ,password = ""}
+    { form = Login newLoginModel
     }
+
+outTabs: List (String,Msg)
+outTabs = [("Login",OutMsg OLoginSelected ),("Signup", OutMsg OSignupSelected)]
 
 view : OutModel -> Html Msg
 view lm = 
+    div [] [
     case lm.form of
-        Login _ -> loginForm
-        Signup _ -> signupForm
+        Login _ -> tabBox outTabs "Login" loginForm
+        Signup _ -> tabBox outTabs "Signup" signupForm
+    ]
 
 update: OutMsg -> OutModel -> (OutModel,Cmd Msg)
 update msg om = 
@@ -38,7 +44,8 @@ update msg om =
         (OUpdateName s,Signup m ) -> ({om |form = Signup <| updateName s m},Cmd.none)
         (OUpdatePass s,Login m ) -> ({om |form = Login <| updatePass s m},Cmd.none)
         (OUpdatePass s,Signup m ) -> ({om |form = Signup <| updatePass s m},Cmd.none)
-            
+        (OLoginSelected,_)-> ({om| form = Login  newLoginModel},Cmd.none)
+        (OSignupSelected,_)-> ({om| form = Signup  newLoginModel},Cmd.none)
     
 
 type alias LoginModel =
@@ -46,6 +53,8 @@ type alias LoginModel =
     , password: String
     }
     
+newLoginModel = {name="",password=""}
+
 loginForm: Html Msg
 loginForm
     = qform "login" "/login" (OutMsg OSubmit)

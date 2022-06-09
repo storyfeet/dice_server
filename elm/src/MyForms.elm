@@ -8,6 +8,21 @@ import Html.Events exposing(..)
 import Http exposing(..)
 import Url.Builder exposing(..)
 
+tabBox : (List (String, Msg))-> String ->  Html Msg -> Html Msg
+tabBox headers cur member = 
+    let 
+        btns = headers |> List.map (\(s,m) ->
+            if s == cur then
+                button [] [text ("__"++ s)]
+            else
+                button [onClick m] [text s])
+    in 
+        div [] [
+            div [] btns
+            , member
+        ]
+
+
 
 
 

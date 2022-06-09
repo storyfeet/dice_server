@@ -17,3 +17,11 @@ errorToString error =
             "Unknown error"
         BadBody errorMessage ->
             errorMessage
+
+
+mapWithN : (number -> a -> b) -> number -> List a -> List b
+mapWithN fn n ls =
+    case ls of
+        [] -> []
+        h :: t -> (fn n h) :: mapWithN fn (n+1) t
+

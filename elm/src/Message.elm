@@ -11,6 +11,8 @@ type Msg
 type OutMsg
     = OUpdateName String
     | OUpdatePass String
+    | OLoginSelected
+    | OSignupSelected
     | OSubmit
 
 
